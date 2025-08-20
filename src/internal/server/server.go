@@ -18,9 +18,9 @@ func New(addr string) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         addr,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  30 * time.Second,
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 30 * time.Second,
+			IdleTimeout:  60 * time.Second,
 		},
 	}
 }
