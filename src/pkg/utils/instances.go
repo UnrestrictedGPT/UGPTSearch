@@ -1,4 +1,4 @@
-package Utils
+package utils
 
 import (
 	"encoding/json"
@@ -6,19 +6,15 @@ import (
 	"net/http"
 )
 
-// InstanceDetails holds the specific fields we need to check for a healthy instance.
 type InstanceDetails struct {
 	NetworkType string `json:"network_type"`
 	Generator   string `json:"generator"`
 }
 
-// InstancesData is the top-level structure of the JSON response from searx.space.
 type InstancesData struct {
 	Instances map[string]InstanceDetails `json:"instances"`
 }
 
-// GetHealthyInstances fetches instances from searx.space, filters for healthy ones,
-// and returns a slice of their base URLs.
 func GetHealthyInstances() ([]string, error) {
 	resp, err := http.Get("https://searx.space/data/instances.json")
 	if err != nil {

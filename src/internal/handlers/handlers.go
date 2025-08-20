@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"UGPTSearch/internal/instances"
 )
 
 var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
 
-func searchHandler(w http.ResponseWriter, r *http.Request) {
+func Search(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		http.Error(w, "Missing search query", http.StatusBadRequest)
@@ -25,7 +27,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		format = "json"
 	}
 
-	instance, err := instanceManager.GetRandomInstance()
+	instance, err := instances.Manager.GetRandomInstance()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("No instances available: %s", err), http.StatusServiceUnavailable)
 		return
@@ -62,12 +64,12 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-func instancesHandler(w http.ResponseWriter, r *http.Request) {
-	instances := instanceManager.GetInstances()
+func Instances(w http.ResponseWriter, r *http.Request) {
+	instanceList := instances.Manager.GetInstances()
 	
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"instances": instances,
-		"count":     len(instances),
+		"instances": instanceList,
+		"count":     len(instanceList),
 	})
 }

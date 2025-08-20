@@ -1,4 +1,4 @@
-package main
+package instances
 
 import (
 	"encoding/json"
@@ -16,7 +16,13 @@ type InstanceManager struct {
 	mu        sync.RWMutex
 }
 
-func NewInstanceManager() *InstanceManager {
+var Manager *InstanceManager
+
+func init() {
+	Manager = New()
+}
+
+func New() *InstanceManager {
 	return &InstanceManager{
 		instances: make([]string, 0),
 	}

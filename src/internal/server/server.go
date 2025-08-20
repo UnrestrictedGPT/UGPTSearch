@@ -1,17 +1,20 @@
-package main
+package server
 
 import (
 	"context"
 	"log"
 	"net/http"
 	"time"
+
+	"UGPTSearch/internal/handlers"
+	"UGPTSearch/internal/middleware"
 )
 
 type Server struct {
 	httpServer *http.Server
 }
 
-func NewServer(addr string) *Server {
+func New(addr string) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         addr,
@@ -23,8 +26,8 @@ func NewServer(addr string) *Server {
 }
 
 func (s *Server) SetupRoutes() {
-	http.HandleFunc("/search", loggingMiddleware(searchHandler))
-	http.HandleFunc("/instances", loggingMiddleware(instancesHandler))
+	http.HandleFunc("/search", middleware.Logging(handlers.Search))
+	http.HandleFunc("/instances", middleware.Logging(handlers.Instances))
 }
 
 func (s *Server) Start() error {
