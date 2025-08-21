@@ -27,6 +27,7 @@ func New(addr string) *Server {
 
 func (s *Server) SetupRoutes() {
 	http.HandleFunc("/search", middleware.Logging(handlers.Search))
+	http.HandleFunc("/api/search", middleware.Logging(handlers.SearchJSON))
 	http.HandleFunc("/instances", middleware.Logging(handlers.Instances))
 }
 

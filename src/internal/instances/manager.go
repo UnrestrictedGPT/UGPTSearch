@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
@@ -17,6 +18,7 @@ type InstanceHealth struct {
 	LastRequest       time.Time
 	ConsecutiveErrors int
 	CooldownUntil     time.Time
+	Cookies           []*http.Cookie
 }
 
 type InstanceManager struct {
@@ -81,7 +83,7 @@ func (im *InstanceManager) GetNextInstance() (string, error) {
 			continue
 		}
 		
-		minRequestInterval := 100 * time.Millisecond
+		minRequestInterval := time.Duration(500+rand.Intn(1000)) * time.Millisecond
 		if now.Sub(health.LastRequest) < minRequestInterval {
 			continue
 		}
@@ -169,6 +171,34 @@ func (im *InstanceManager) FetchInstancesFromURL(url string) error {
 	return nil
 }
 
+func (im *InstanceManager) GetCookies(instance string) []*http.Cookie {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+	
+	health := im.health[instance]
+	if health == nil {
+		return nil
+	}
+	
+	return health.Cookies
+}
+
+func (im *InstanceManager) SetCookies(instance string, cookies []*http.Cookie) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	
+	health := im.health[instance]
+	if health == nil {
+		health = &InstanceHealth{
+			URL:       instance,
+			Available: true,
+		}
+		im.health[instance] = health
+	}
+	
+	health.Cookies = cookies
+}
+
 func (im *InstanceManager) MarkRateLimit(instance string) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
@@ -185,9 +215,10 @@ func (im *InstanceManager) MarkRateLimit(instance string) {
 	health.LastRateLimit = time.Now()
 	health.ConsecutiveErrors++
 	
-	cooldownDuration := time.Duration(health.ConsecutiveErrors) * 30 * time.Second
-	if cooldownDuration > 5*time.Minute {
-		cooldownDuration = 5 * time.Minute
+	baseCooldown := time.Duration(30+rand.Intn(30)) * time.Second
+	cooldownDuration := time.Duration(health.ConsecutiveErrors) * baseCooldown
+	if cooldownDuration > 10*time.Minute {
+		cooldownDuration = 10 * time.Minute
 	}
 	
 	health.CooldownUntil = time.Now().Add(cooldownDuration)
@@ -227,7 +258,7 @@ func (im *InstanceManager) MarkError(instance string) {
 	health.ConsecutiveErrors++
 	
 	if health.ConsecutiveErrors >= 3 {
-		cooldownDuration := 30 * time.Second
+		cooldownDuration := time.Duration(15+rand.Intn(30)) * time.Second
 		health.CooldownUntil = time.Now().Add(cooldownDuration)
 	}
 }
