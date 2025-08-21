@@ -62,15 +62,7 @@ Common tasks:
 - `make test` – run tests
 - `make tidy` – tidy modules
 
-## Python helper (optional)
 
-`scrape_instances.py` can print healthy SearXNG instances from searx.space.
-
-```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-python scrape_instances.py
-```
 
 ## Rate Limiting & Reliability
 
