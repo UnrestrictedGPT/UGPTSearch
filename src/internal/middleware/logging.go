@@ -14,7 +14,7 @@ func Logging(next http.HandlerFunc) http.HandlerFunc {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			}
 		}()
-		
+
 		start := time.Now()
 		next(w, r)
 		log.Printf("[%s] %s %s", r.Method, r.URL.Path, time.Since(start))
