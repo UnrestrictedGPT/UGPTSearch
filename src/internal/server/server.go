@@ -29,6 +29,7 @@ func (s *Server) SetupRoutes() {
 	http.HandleFunc("/search", middleware.Logging(handlers.Search))
 	http.HandleFunc("/api/search", middleware.Logging(handlers.SearchJSON))
 	http.HandleFunc("/instances", middleware.Logging(handlers.Instances))
+	http.HandleFunc("/anubis-stats", middleware.Logging(handlers.AnubisStats))
 }
 
 func (s *Server) Start() error {

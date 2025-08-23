@@ -19,6 +19,8 @@ type InstanceHealth struct {
 	ConsecutiveErrors int
 	CooldownUntil     time.Time
 	Cookies           []*http.Cookie
+	AnubisProtected   bool
+	AnubisDetectedAt  time.Time
 }
 
 type InstanceManager struct {
@@ -80,6 +82,11 @@ func (im *InstanceManager) GetNextInstance() (string, error) {
 		}
 
 		if now.Before(health.CooldownUntil) {
+			continue
+		}
+
+		// Skip Anubis-protected instances
+		if health.AnubisProtected {
 			continue
 		}
 
@@ -303,5 +310,95 @@ func (im *InstanceManager) MarkError(instance string) {
 		}
 
 		health.CooldownUntil = time.Now().Add(cooldownDuration)
+	}
+}
+
+// MarkAnubisProtected marks an instance as protected by Anubis bot detection
+func (im *InstanceManager) MarkAnubisProtected(instance string) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	health := im.health[instance]
+	if health == nil {
+		health = &InstanceHealth{
+			URL:       instance,
+			Available: true,
+		}
+		im.health[instance] = health
+	}
+
+	health.AnubisProtected = true
+	health.AnubisDetectedAt = time.Now()
+	health.Available = false // Anubis-protected instances are not available for use
+
+	// Log the detection for monitoring
+	fmt.Printf("[ANUBIS] Instance %s marked as Anubis-protected\n", instance)
+}
+
+// IsAnubisProtected checks if an instance is known to be Anubis-protected
+func (im *InstanceManager) IsAnubisProtected(instance string) bool {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+
+	health := im.health[instance]
+	if health == nil {
+		return false
+	}
+
+	return health.AnubisProtected
+}
+
+// GetAvailableInstanceCount returns the count of non-Anubis, available instances
+func (im *InstanceManager) GetAvailableInstanceCount() int {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+
+	count := 0
+	now := time.Now()
+
+	for _, instance := range im.instances {
+		health := im.health[instance]
+		if health == nil {
+			count++ // Assume untracked instances are available
+			continue
+		}
+
+		if !health.AnubisProtected && health.Available && now.After(health.CooldownUntil) {
+			count++
+		}
+	}
+
+	return count
+}
+
+// GetAnubisStats returns statistics about Anubis protection detection
+func (im *InstanceManager) GetAnubisStats() map[string]interface{} {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+
+	totalInstances := len(im.instances)
+	anubisCount := 0
+	availableCount := 0
+	now := time.Now()
+
+	for _, instance := range im.instances {
+		health := im.health[instance]
+		if health == nil {
+			availableCount++
+			continue
+		}
+
+		if health.AnubisProtected {
+			anubisCount++
+		} else if health.Available && now.After(health.CooldownUntil) {
+			availableCount++
+		}
+	}
+
+	return map[string]interface{}{
+		"total_instances":     totalInstances,
+		"anubis_protected":    anubisCount,
+		"available_instances": availableCount,
+		"anubis_percentage":   float64(anubisCount) / float64(totalInstances) * 100,
 	}
 }

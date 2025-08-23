@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -208,4 +209,198 @@ func SessionBasedDelay() {
 	if delay > 0 {
 		time.Sleep(delay)
 	}
+}
+
+// AnubisDetectionResult contains the result of Anubis bot detection analysis
+type AnubisDetectionResult struct {
+	IsAnubisProtected bool
+	Confidence        float64
+	DetectionReasons  []string
+	ResponseAnalysis  map[string]interface{}
+}
+
+// DetectAnubisProtection analyzes an HTTP response to detect Anubis bot protection
+func DetectAnubisProtection(responseBody []byte, responseHeaders http.Header, statusCode int) *AnubisDetectionResult {
+	result := &AnubisDetectionResult{
+		IsAnubisProtected: false,
+		Confidence:        0.0,
+		DetectionReasons:  make([]string, 0),
+		ResponseAnalysis:  make(map[string]interface{}),
+	}
+
+	bodyStr := strings.ToLower(string(responseBody))
+	confidencePoints := 0.0
+	maxPoints := 0.0
+
+	// Check for explicit Anubis signatures
+	anubisSignatures := []string{
+		"anubis protection",
+		"bot detection",
+		"automated access detected",
+		"challenge required",
+		"please enable javascript",
+		"verify you are human",
+		"cloudflare ray id",
+		"access denied",
+		"unauthorized access",
+		"security check",
+	}
+
+	maxPoints += 30.0 // Max points for signature detection
+	for _, signature := range anubisSignatures {
+		if strings.Contains(bodyStr, signature) {
+			confidencePoints += 5.0
+			result.DetectionReasons = append(result.DetectionReasons, fmt.Sprintf("Found signature: %s", signature))
+		}
+	}
+
+	// Check for JavaScript challenge patterns
+	jsPatterns := []string{
+		"document.cookie",
+		"window.location",
+		"settimeout",
+		"challenge-form",
+		"cf-challenge",
+		"jschl_vc",
+		"jschl_answer",
+	}
+
+	maxPoints += 20.0 // Max points for JS challenge detection
+	jsCount := 0
+	for _, pattern := range jsPatterns {
+		if strings.Contains(bodyStr, pattern) {
+			jsCount++
+		}
+	}
+	if jsCount >= 3 {
+		confidencePoints += 15.0
+		result.DetectionReasons = append(result.DetectionReasons, fmt.Sprintf("JavaScript challenge detected (%d patterns)", jsCount))
+	} else if jsCount >= 1 {
+		confidencePoints += 5.0
+		result.DetectionReasons = append(result.DetectionReasons, "Potential JavaScript challenge")
+	}
+
+	// Check suspicious HTTP status codes
+	maxPoints += 15.0
+	if statusCode == 403 {
+		confidencePoints += 10.0
+		result.DetectionReasons = append(result.DetectionReasons, "HTTP 403 Forbidden response")
+	} else if statusCode == 429 {
+		confidencePoints += 8.0
+		result.DetectionReasons = append(result.DetectionReasons, "HTTP 429 Too Many Requests")
+	} else if statusCode == 503 {
+		confidencePoints += 6.0
+		result.DetectionReasons = append(result.DetectionReasons, "HTTP 503 Service Unavailable")
+	}
+
+	// Check for suspicious headers
+	maxPoints += 15.0
+	suspiciousHeaders := []string{
+		"cf-ray",
+		"cf-cache-status",
+		"x-protected-by",
+		"x-security",
+		"x-bot-protection",
+	}
+
+	for _, header := range suspiciousHeaders {
+		if responseHeaders.Get(header) != "" {
+			confidencePoints += 3.0
+			result.DetectionReasons = append(result.DetectionReasons, fmt.Sprintf("Suspicious header: %s", header))
+		}
+	}
+
+	// Check response body characteristics
+	maxPoints += 10.0
+	if len(responseBody) < 500 { // Very short responses are suspicious
+		confidencePoints += 5.0
+		result.DetectionReasons = append(result.DetectionReasons, "Unusually short response body")
+	}
+
+	// Check for minimal HTML structure (often used by bot protection)
+	if strings.Contains(bodyStr, "<html>") && strings.Contains(bodyStr, "</html>") {
+		htmlElementCount := strings.Count(bodyStr, "<")
+		if htmlElementCount < 10 { // Very minimal HTML
+			confidencePoints += 5.0
+			result.DetectionReasons = append(result.DetectionReasons, "Minimal HTML structure detected")
+		}
+	}
+
+	// Check for CAPTCHA indicators
+	maxPoints += 10.0
+	captchaPatterns := []string{
+		"captcha",
+		"recaptcha",
+		"hcaptcha",
+		"are you human",
+		"prove you're not a robot",
+	}
+
+	for _, pattern := range captchaPatterns {
+		if strings.Contains(bodyStr, pattern) {
+			confidencePoints += 8.0
+			result.DetectionReasons = append(result.DetectionReasons, "CAPTCHA challenge detected")
+			break
+		}
+	}
+
+	// Calculate confidence as percentage
+	result.Confidence = (confidencePoints / maxPoints) * 100.0
+	if result.Confidence > 100.0 {
+		result.Confidence = 100.0
+	}
+
+	// Determine if it's Anubis-protected based on confidence threshold
+	result.IsAnubisProtected = result.Confidence >= 40.0 // 40% confidence threshold
+
+	// Store additional analysis data
+	result.ResponseAnalysis["status_code"] = statusCode
+	result.ResponseAnalysis["body_length"] = len(responseBody)
+	result.ResponseAnalysis["content_type"] = responseHeaders.Get("Content-Type")
+	result.ResponseAnalysis["server"] = responseHeaders.Get("Server")
+	result.ResponseAnalysis["confidence_points"] = confidencePoints
+	result.ResponseAnalysis["max_points"] = maxPoints
+
+	return result
+}
+
+// IsSearchResultValid checks if a search response contains actual search results
+func IsSearchResultValid(responseBody []byte) bool {
+	bodyStr := strings.ToLower(string(responseBody))
+
+	// Check for positive indicators of valid search results
+	validIndicators := []string{
+		"search results",
+		"results found",
+		"<div class=\"result\"",
+		"<article",
+		"href=",
+		"search.php",
+		"results for",
+	}
+
+	validCount := 0
+	for _, indicator := range validIndicators {
+		if strings.Contains(bodyStr, indicator) {
+			validCount++
+		}
+	}
+
+	// Check for negative indicators
+	invalidIndicators := []string{
+		"no results found",
+		"0 results",
+		"try different keywords",
+		"nothing found",
+	}
+
+	invalidCount := 0
+	for _, indicator := range invalidIndicators {
+		if strings.Contains(bodyStr, indicator) {
+			invalidCount++
+		}
+	}
+
+	// Must have at least 2 valid indicators and no more than 1 invalid indicator
+	return validCount >= 2 && invalidCount <= 1
 }

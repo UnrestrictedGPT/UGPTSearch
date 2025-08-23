@@ -493,9 +493,25 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Perform Anubis bot detection analysis on the response
+		anubisResult := DetectAnubisProtection(body, resp.Header, resp.StatusCode)
+		if anubisResult.IsAnubisProtected {
+			instances.Manager.MarkAnubisProtected(instance)
+			lastErr = fmt.Errorf("instance protected by Anubis (confidence: %.1f%%) - %s", 
+				anubisResult.Confidence, strings.Join(anubisResult.DetectionReasons, ", "))
+			continue
+		}
+
 		if strings.Contains(string(body), "Site Maintenance") || strings.Contains(string(body), "maintenance") {
 			instances.Manager.MarkError(instance)
 			lastErr = fmt.Errorf("instance is under maintenance")
+			continue
+		}
+
+		// Validate that the response contains actual search results
+		if !IsSearchResultValid(body) {
+			instances.Manager.MarkError(instance)
+			lastErr = fmt.Errorf("instance returned invalid search results")
 			continue
 		}
 
@@ -628,9 +644,25 @@ func SearchJSON(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Perform Anubis bot detection analysis on the response
+		anubisResult := DetectAnubisProtection(body, resp.Header, resp.StatusCode)
+		if anubisResult.IsAnubisProtected {
+			instances.Manager.MarkAnubisProtected(instance)
+			lastErr = fmt.Errorf("instance protected by Anubis (confidence: %.1f%%) - %s", 
+				anubisResult.Confidence, strings.Join(anubisResult.DetectionReasons, ", "))
+			continue
+		}
+
 		if strings.Contains(string(body), "Site Maintenance") || strings.Contains(string(body), "maintenance") {
 			instances.Manager.MarkError(instance)
 			lastErr = fmt.Errorf("instance is under maintenance")
+			continue
+		}
+
+		// Validate that the response contains actual search results
+		if !IsSearchResultValid(body) {
+			instances.Manager.MarkError(instance)
+			lastErr = fmt.Errorf("instance returned invalid search results")
 			continue
 		}
 
@@ -683,10 +715,38 @@ func SearchJSON(w http.ResponseWriter, r *http.Request) {
 
 func Instances(w http.ResponseWriter, r *http.Request) {
 	instanceList := instances.Manager.GetInstances()
+	anubisStats := instances.Manager.GetAnubisStats()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"instances": instanceList,
-		"count":     len(instanceList),
+		"instances":        instanceList,
+		"count":            len(instanceList),
+		"anubis_stats":     anubisStats,
+		"available_count":  instances.Manager.GetAvailableInstanceCount(),
 	})
+}
+
+// AnubisStats provides detailed information about Anubis protection detection
+func AnubisStats(w http.ResponseWriter, r *http.Request) {
+	stats := instances.Manager.GetAnubisStats()
+	
+	// Add more detailed information
+	detailedStats := map[string]interface{}{
+		"anubis_detection": stats,
+		"timestamp":        time.Now(),
+		"detection_info": map[string]interface{}{
+			"confidence_threshold": 40.0,
+			"detection_criteria": []string{
+				"Bot detection signatures",
+				"JavaScript challenges",
+				"HTTP status codes (403, 429, 503)",
+				"Suspicious headers",
+				"CAPTCHA indicators",
+				"Minimal HTML structure",
+			},
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detailedStats)
 }

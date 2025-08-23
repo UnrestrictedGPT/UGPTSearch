@@ -243,10 +243,12 @@ func (cs *ConcurrentServer) SetupRoutes() {
 	searchHandler := cs.enhancedMiddleware(cs.handleConcurrentSearch)
 	searchJSONHandler := cs.enhancedMiddleware(cs.handleConcurrentSearchJSON)
 	instancesHandler := cs.enhancedMiddleware(handlers.Instances)
+	anubisStatsHandler := cs.enhancedMiddleware(handlers.AnubisStats)
 
 	mux.HandleFunc("/search", searchHandler)
 	mux.HandleFunc("/api/search", searchJSONHandler)
 	mux.HandleFunc("/instances", instancesHandler)
+	mux.HandleFunc("/anubis-stats", anubisStatsHandler)
 
 	// Add metrics endpoints if enabled
 	if cs.metricsCollector != nil {
